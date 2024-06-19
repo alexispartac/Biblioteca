@@ -4,13 +4,8 @@ codurile de status
 
 */
 // interogari cu matrice
-import fs from "fs/promises"
 import mongodb from "mongodb"
-import { createRequire } from "module";
 import { MongoClient } from "mongodb";
-const require = createRequire(import.meta.url);
-const persoane = require("../lista-persoane.json");
-const carti = require("../lista-carti.json");
 import Book from "../model/books.js"
 
 const uri = "mongodb+srv://mateipartac45:Lucaaliuta13$@cluster0.stmiw0l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
@@ -19,13 +14,6 @@ const collectionBooks = client.db("biblioteca").collection("books");
 const collectionUsers = client.db("biblioteca").collection("users");
 const { ObjectId } = mongodb;
 
-
-function schimbareDate(data){
-    let dataToString = data.toString();
-    let dataToObj = JSON.parse(dataToString);
-    let carti = dataToObj["carti"];
-    return carti;
-};
 
 async function permissionLib(req){
     try{
@@ -66,25 +54,12 @@ function verifParamsIn(req){
 }
 
 async function searchBook(req){
-    // const cartii = carti["carti"]
-    // return cartii.find(carte => carte.id  === req.params.id)
     try{
         return await collectionBooks.findOne({_id: new ObjectId(`${req.params.id}`)})
     }catch(err){
         return false;
     }
 }
-
-async function ReadFile(){
-    const data = await fs.readFile('lista-carti.json')
-    return schimbareDate(data);
-}
-
-async function WriteFile(carti){
-    await fs.writeFile('lista-carti.json', JSON.stringify({"carti":carti}))
-        console.log(carti)
-    
-};
 
 export const listOfBooks = async(req, res) => {
     try{
@@ -161,9 +136,6 @@ export const addBook = async(req, res) => {
         const book = new Book(body);
         book.save();
 
-        // const carti = await ReadFile();
-        // carti.push({ ...carte, id: uuidv4()});
-        // await WriteFile(carti);
         await collectionBooks.insertOne(book);
         res.send({message: `cartea ${book.nume} a fost adaugata`});
     }catch(error){
@@ -182,9 +154,6 @@ export const getBook = async(req, res) => {
         if(!await searchBook(req)){
             return res.status(400).json({message: "Cartea nu exista!"})
         }
-
-        // const carti = await ReadFile();
-        // const foundcarte = carti.find((carte) => carte.id === req.params.id)
 
         const foundBook = await collectionBooks.findOne({_id: new ObjectId(`${req.params.id}`)})
         res.status(200).send(foundBook)
@@ -207,10 +176,6 @@ export const deleteBook = async(req, res) => {
         if(! await searchBook(req)){
             return res.status(400).json({message: "The book doesn t exist!"})
         }
-
-        // const carti = await ReadFile()    
-        // const remaincarte = carti.filter((carte) => carte.id !== req.params.id);
-        // await WriteFile(remaincarte);
 
         await collectionBooks.deleteOne({_id: new ObjectId(`${req.params.id}`)});
         res.send({message: `Book:${req.params.id} was deleted`});
@@ -235,14 +200,6 @@ export const updateBook = async(req, res) => {
         if(verif !== true){
             return res.status(400).json({message: verif})
         }
-        // const carti = await ReadFile();
-        // const foundcarte = carti.find((carte) => carte.id === req.params.id)
-        // if(!foundcarte){
-        //     return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
-        // }
-        // foundcarte.nume = req.body.nume;
-        // foundcarte.autor = req.body.autor;
-        // await WriteFile(carti);
 
         await collectionBooks.updateOne(
             {_id: new ObjectId(`${req.params.id}`)}, 
@@ -272,11 +229,6 @@ export const borrowBook = async(req, res) => {
             return res.status(400).json({message: 'Numele trebuie sa contina doar caractere!'})
         }
         
-        // const carti = await ReadFile();
-        // const foundcarte = carti.find((carte) => carte.nume === req.body.nume)
-        // if(!foundcarte){
-        //     return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
-        // }
         const foundBook = await collectionBooks.findOne({nume: `${req.body.nume}`})
 
         if(!foundBook){
@@ -302,7 +254,6 @@ export const borrowBook = async(req, res) => {
         }
         foundBook.dateRet = newDate;
 
-        // await WriteFile(carti);
         await collectionBooks.updateOne(
             {nume: `${req.body.nume}`}, 
             {$set: new Object(foundBook)}
@@ -327,11 +278,6 @@ export const returnBook = async(req, res) => {
         if(verif !== true){
             return res.status(400).json({message: verif})
         }
-       // const carti = await ReadFile();
-        // const foundcarte = carti.find((carte) => carte.nume === req.body.nume)
-        // if(!foundcarte){
-        //     return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
-        // }
 
         const foundBook = await collectionBooks.findOne({nume: `${req.body.nume}`})
         if(!foundBook){
@@ -344,7 +290,6 @@ export const returnBook = async(req, res) => {
         // update user
         collectionUsers.updateOne({username: foundBook.borrFrom}, {$inc: {booksToReturn: -1}})
 
-        // await WriteFile(carti);
         // update carte
         foundBook.borrowedBook = false;
         await collectionBooks.updateOne(
