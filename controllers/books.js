@@ -235,7 +235,7 @@ export const borrowBook = async(req, res) => {
             return res.status(400).json({message: "Cartea nu exista!"})
         }
   
-        if(foundBook.impCarte === true)
+        if(foundBook.borrowedBook === true)
            return res.status(400).json({message: 'Cartea este deja imprumutata!'})
         // update carte
         foundBook.borrowedBook = true;

@@ -18,7 +18,6 @@ const uri = "mongodb+srv://mateipartac45:Lucaaliuta13$@cluster0.stmiw0l.mongodb.
 
 // Connect to MongoDB
 connectDB();
-console.log(34);
 // Create server 
 const server = http.createServer(app);
 mongoose.connection.once('open', () => {
