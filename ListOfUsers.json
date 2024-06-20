@@ -1,1 +1,1 @@
-{"users": []}
+{"users":[{"id":"12a96dc9-8bd7-408e-ad06-333d85fd2452","username":"PartacMariusLuca","password":"alexis45","roles":{"User":"c0f645b0-2edd-11ef-9719-99e841656bcc"},"numberBorrowedBooks":0,"borrowedBookRemain":0},{"id":"749acff6-f08f-4e92-92b3-651ad178db70","username":"PartacAlexisMatei","password":"alexis45","roles":{"User":"0beec6f0-2ede-11ef-b2c3-19707deb4114"},"numberBorrowedBooks":3,"borrowedBookRemain":2}]}

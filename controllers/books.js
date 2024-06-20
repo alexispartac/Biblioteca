@@ -4,23 +4,36 @@ codurile de status
 
 */
 // interogari cu matrice
+
 import fs from "fs/promises"
-import {uuidv4} from "uuid"
+import { v4 as uuidv4 } from 'uuid';
+import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const users = require("../ListOfUsers.json");
 const librarians = require("../ListOfLibrarians.json");
 const books = require("../ListOfBooks.json");
 
-function switchData(data, col){
+function changeData(data, col){
     let dataToString = data.toString();
     let dataToObj = JSON.parse(dataToString);
     let books = dataToObj[col];
     return books;
 };
 
+async function updateUser(user, incOrdec){
+    if(incOrdec == 1){
+        user.numberBorrowedBooks++;
+        user.borrowedBookRemain++;
+    }
+    if(incOrdec == -1){
+        user.borrowedBookRemain--;
+    }
+    return user;
+}
+
 async function permissionLib(req){
     try{
-        const Librarians = await ReadFile("ListOfLibrarians", "librarians")
+        const Librarians = await ReadFile("ListOfLibrarians.json", "librarians")
         return Librarians.find(lib => lib.id  === req.headers.idlib)
     }catch(err){
         return false;
@@ -29,7 +42,7 @@ async function permissionLib(req){
 
 async function permissionUser(req){
     try{
-        const Users = await ReadFile("ListOfBooks", "users")
+        const Users = await ReadFile("ListOfUsers.json", "users")
         return Users.find(user => user.id  === req.headers.iduser)
     }catch(err){
         return false;
@@ -59,18 +72,25 @@ function verifParamsIn(req){
 }
 
 async function searchBook(req){
-    const Books = await ReadFile('ListOfBooks', "books")
+    const Books = await ReadFile('ListOfBooks.json', "books")
     return Books.find(book => book.id  === req.params.id)
 }
 
-async function ReadFile(file, col){
-    const data = await fs.readFile(`${file}`)
-    return switchData(data, col);
+async function searchUser(username){
+    const Users = await ReadFile('ListOfUsers.json', "users")
+    return Users.find(user => user.username  === username)
 }
 
-async function WriteFile(file, col){
-    await fs.writeFile(`${file}`, JSON.stringify({col:carti}))
+//file:String, col:String
+async function ReadFile(file, col){
+    const data = await fs.readFile(file)
+    return changeData(data, col);
+}
+//file:String, col:Array
+async function WriteFile(file, data){
+    await fs.writeFile(file, JSON.stringify({books:data}))
 };
+
 
 export const listOfBooks = async(req, res) => {
     try{
@@ -78,7 +98,7 @@ export const listOfBooks = async(req, res) => {
             return res.status(401).json({message: "Neautorizat!"});
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         res.send({books})
     }catch(error){
         res.status(401).json({eroor: "Ceva nu a mers bine!"})
@@ -91,8 +111,8 @@ export const listOfBooksAvailable = async(req, res) => {
             return res.status(401).json({message: "Neautorizat!"});
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
-        const booksAvailable = books.find(book => book.borrowedBook === true );
+        const books = await ReadFile("ListOfBooks.json", "books");
+        const booksAvailable = books.filter(book => book.borrowedBook === false );
         res.send({booksAvailable})
 
     }catch(error){
@@ -106,7 +126,7 @@ export const listOfBooksBorr = async(req, res) => {
             return res.status(401).json({message: "Neautorizat!"});
         }
         
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         const borrowedBooks = books.find(book => book.borrowedBook === true );
 
         res.send({borrowedBooks})
@@ -129,9 +149,9 @@ export const addBook = async(req, res) => {
         const body = req.body;
         body.borrowedBook = false;
 
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         books.push({ ...body, id: uuidv4()});
-        await WriteFile(books, "books");
+        await WriteFile("ListOfBooks.json", books);
         res.send({message: `cartea ${body.nume} a fost adaugata`});
     }catch(error){
         res.status(500).json({error: "Ceva nu a mers bine!"})
@@ -150,7 +170,7 @@ export const getBook = async(req, res) => {
             return res.status(400).json({message: "Cartea nu exista!"})
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         const foundBook = books.find(book => book.id === req.params.id);
         res.status(200).send(foundBook)
             
@@ -173,9 +193,9 @@ export const deleteBook = async(req, res) => {
             return res.status(400).json({message: "The book doesn t exist!"})
         }
 
-        const books = await ReadFile("ListOfBooks", "books");   
+        const books = await ReadFile("ListOfBooks.json", "books");   
         const booksR = books.filter(book => book.id !== req.params.id);
-        await WriteFile(booksR);
+        await WriteFile("ListOfBooks.json", booksR);
         res.send({message: `Book:${req.params.id} was deleted`});
 
     }catch(error){
@@ -199,14 +219,14 @@ export const updateBook = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         const foundBook = books.find(book => book.id === req.params.id)
         if(!foundBook){
             return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
         }
         foundBook.nume = req.body.nume;
         foundBook.autor = req.body.autor;
-        await WriteFile(books, "books");
+        await WriteFile("ListOfBooks.json", books);
         res.status(200).json({message: `Book: ${req.params.id} a fost modificata`})
 
     }catch(error){
@@ -226,14 +246,26 @@ export const borrowBook = async(req, res) => {
         if(verif !== true){
             return res.status(400).json({message: verif})
         }
+
+        //update user
         if(typeof req.body.borrFrom !== 'string'){
             return res.status(400).json({message: 'Numele trebuie sa contina doar caractere!'})
         }
+        let user = await searchUser(req.body.borrFrom);
+        console.log(user);
+        if(!user)
+            return res.status(400).json({message: "User ul nu exista"})
+
+        const users = await ReadFile("ListOfUsers.json", "users");
+        user = users.find(user => user.username === req.body.borrFrom)
+        await updateUser(user, 1);
+        await fs.writeFile("ListOfUsers.json", JSON.stringify({users:users}))
+
         
-        const books = await ReadFile("ListOfBooks", "books");
+        const books = await ReadFile("ListOfBooks.json", "books");
         const foundBook = books.find(book => book.nume === req.body.nume)
         if(!foundBook){
-            return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
+            return res.status(401).json({message: `Cartea nu exista!`})
         }
   
         if(foundBook.borrowedBook === true)
@@ -252,7 +284,7 @@ export const borrowBook = async(req, res) => {
         }
         foundBook.dateRet = newDate;
 
-        await WriteFile(books, "books");
+        await WriteFile("ListOfBooks.json", books);
         res.status(200).json({message: "Imprumutata cu succes!"})
         
     }catch(error){
@@ -274,7 +306,7 @@ export const returnBook = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const books = await ReadFile();
+        const books = await ReadFile("ListOfBooks.json", "books");
         const foundBook = books.find(book => book.nume === req.body.nume)
         if(!foundBook){
             return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
@@ -289,7 +321,22 @@ export const returnBook = async(req, res) => {
         delete foundBook.borrFrom;
         delete foundBook.dateBorr;
         delete foundBook.dateRet;
-        await WriteFile(books, "books");
+
+        //update user
+        if(typeof req.body.borrFrom !== 'string'){
+            return res.status(400).json({message: 'Numele trebuie sa contina doar caractere!'})
+        }
+        let user = await searchUser(req.body.borrFrom);
+        console.log(user);
+        if(!user)
+            return res.status(400).json({message: "User ul nu exista"})
+
+        const users = await ReadFile("ListOfUsers.json", "users");
+        user = users.find(user => user.username === req.body.borrFrom)
+        await updateUser(user, -1);
+        await fs.writeFile("ListOfUsers.json", JSON.stringify({users:users}))
+
+        await WriteFile("ListOfBooks.json", books);
         res.status(200).json({message: "Returnata cu succes!"})
  
     }catch(error){
