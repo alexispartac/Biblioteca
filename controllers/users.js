@@ -27,7 +27,8 @@ async function user(req){
 // functie de permisiune bib
 async function permissionLib(req){
     try{
-        return await col.findOne({_id: new ObjectId(`${req.headers.idlib}`)})  // header ul converteste in litere mici
+        const Librarians = await ReadFile("ListOfLibrarians.json", "librarians")
+        return Librarians.find(lib => lib.id  === req.headers.idlib)
     }catch(err){
         return false;
     }
@@ -35,7 +36,8 @@ async function permissionLib(req){
 //functie de permisiune pers
 async function permissionUser(req){
     try{
-        return await col.findOne({_id: new ObjectId(`${req.headers.iduser}`)})
+        const Users = await ReadFile("ListOfUsers.json", "users")
+        return Users.find(user => user.id  === req.headers.iduser)
     }catch(err){
         return false;
     }
@@ -127,7 +129,8 @@ export const getUser = async(req, res) => {
             return res.status(400).json({message: "User nu exista!"})
         }
 
-        const foundUser = await col.findOne({ _id: new ObjectId(`${req.params.id}`) }); 
+        const users = await ReadFile("ListOfUsers.json", "users");
+        const foundUser = users.find(user => user.id === req.params.id)
         res.status(200).send(foundUser)
 
     }catch(error){
