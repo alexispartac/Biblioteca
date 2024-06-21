@@ -1,18 +1,6 @@
 
-// lista de carti imprumutate
-// lista de carti disponibile pentru imprumut
-// adaug o noua carte in baza de date
-// adaug un nou user in baza de date
-// vreau sa stiu daca un user e Admin sau nu (presupunand ca ai salvat informatia asta in baza de date) 
-// … poti sa mai adaugi tu
-
-
-import fs from "fs/promises"
 import { MongoClient } from "mongodb"
 import mongodb from "mongodb"
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const persoane = require("../lista-persoane.json");
 import User from "../model/users.js"
 
 const uri = "mongodb+srv://mateipartac45:Lucaaliuta13$@cluster0.stmiw0l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
@@ -77,8 +65,6 @@ function verifParamsIn(req){
 }
 //functie cautare persosna
 async function searchUser(req){
-    // const persoanee = persoane["persoane"]
-    // return persoanee.find(persoana => persoana.id  === req.params.id)
     try{
         return await col.findOne({_id: new ObjectId(`${req.params.id}`)})
     }catch(err){
@@ -103,7 +89,7 @@ export const listOfUsers = async(req, res) => {
         if(!(await permissionLib(req) || await permissionUser(req))){
             return res.status(401).json({message: "Neautorizat!"});
         }
-//       const persoane = await ReadFile();
+
         const users = await col.find({}).maxTimeMS(50).toArray((err, data) => {
             if (err) {
                 res.status(400).json({error: 'Ceva nu a mers bine!'})
@@ -130,9 +116,7 @@ export const addUser = async(req, res) => {
 
         const user = new User({...req.body, booksNumberBorrowed: 0, booksToReturn: 0});
         user.save();
-        // const persoane = await ReadFile();
-        // persoane.push({ ...pers, id: uuidv4()});
-        // await WriteFile(persoane);
+
         await col.insertOne(user)
         res.send({message: `User:${user.username} a fost adaugata!`});
         
@@ -152,8 +136,6 @@ export const getUser = async(req, res) => {
         if(!await searchUser(req)){
             return res.status(400).json({message: "User nu exista!"})
         }
-        // const persoane = await ReadFile();
-        // const foundpers = persoane.find((pers) => pers.id === req.params.id)
 
         const foundUser = await col.findOne({ _id: new ObjectId(`${req.params.id}`) }); 
         res.status(200).send(foundUser)
@@ -174,10 +156,6 @@ export const deleteUser = async(req, res) => {
         if(!await searchUser(req)){
             return res.status(400).json({message: "User ul nu exista!"})
         }
-
-        // const persoane = await ReadFile()    
-        // const remainpers = persoane.filter((pers) => pers.id !== req.params.id);
-        // await WriteFile(remainpers);
 
         await col.deleteOne({_id: new ObjectId(`${req.params.id}`)})
         res.send({message: `User:${req.params.id} sters`});
@@ -204,17 +182,6 @@ export const updateUser = async(req, res) => {
         if(verif !== true){
             return res.status(400).json({message: verif})
         }
-
-        // const persoane = await ReadFile();
-        // const persoana = persoane.find((pers) => pers.id === req.params.id)
-        // if(!persoana){
-        //     return res.status(401).json({message: `Persoana cu id ul ${req.params.id} nu exista!`})
-        // }
-
-        // persoana.nume = req.body.nume;
-        // persoana.prenume = req.body.prenume;
-        // persoana.age = req.body.age;
-        // await WriteFile(persoane);
 
         await col.updateOne(
             {_id: new ObjectId(`${req.params.id}`)}, 
