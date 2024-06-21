@@ -16,13 +16,6 @@ async function user(req){
     else
         return true;
 }
-
-function schimbareDate(data){
-    let dataToString = data.toString();
-    let dataToObj = JSON.parse(dataToString);
-    let persoane = dataToObj["persoane"];
-    return persoane;
-};
 // functie de permisiune bib
 async function permissionLib(req){
     try{
@@ -72,17 +65,6 @@ async function searchUser(req){
     }
 
 }
-// functie citire fisier
-async function ReadFile(){
-    const data = await fs.readFile('lista-persoane.json')
-    return schimbareDate(data);
-}
-// functie scriere fisier 
-async function WriteFile(persoane){
-    await fs.writeFile('lista-persoane.json', JSON.stringify({"persoane":persoane}))
-        console.log(persoane)
-    
-};
 
 export const listOfUsers = async(req, res) => {
     try{
@@ -116,7 +98,6 @@ export const addUser = async(req, res) => {
 
         const user = new User({...req.body, booksNumberBorrowed: 0, booksToReturn: 0});
         user.save();
-
         await col.insertOne(user)
         res.send({message: `User:${user.username} a fost adaugata!`});
         
@@ -130,7 +111,7 @@ export const getUser = async(req, res) => {
         if(!permissionLib(req)){
             return res.status(401).json({message: "Neautorizat!"})
         }
-        if(!verifParamsIn(req)){                                                                // numarul luat ca un string
+        if(!verifParamsIn(req)){                                                               
             return res.status(400).json({message: "Numele, prenumele sau varsta este gresita!"})
         }
         if(!await searchUser(req)){
