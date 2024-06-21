@@ -1,12 +1,6 @@
-/*
-middlewere
-codurile de status
 
-*/
-// interogari cu matrice
 import mongodb from "mongodb"
 import { MongoClient } from "mongodb";
-import Book from "../model/books.js"
 
 const uri = "mongodb+srv://mateipartac45:Lucaaliuta13$@cluster0.stmiw0l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const client = new MongoClient(uri);
@@ -17,8 +11,7 @@ const { ObjectId } = mongodb;
 
 async function permissionLib(req){
     try{
-        const Librarians = await ReadFile("ListOfLibrarians", "librarians")
-        return Librarians.find(lib => lib.id  === req.headers.idlib)
+        return await collectionUsers.findOne({_id: new ObjectId(`${req.headers.idlib}`)})  // header ul converteste in litere mici
     }catch(err){
         return false;
     }
@@ -26,8 +19,7 @@ async function permissionLib(req){
 
 async function permissionUser(req){
     try{
-        const Users = await ReadFile("ListOfBooks", "users")
-        return Users.find(user => user.id  === req.headers.iduser)
+        return await collectionUsers.findOne({_id: new ObjectId(`${req.headers.iduser}`)})
     }catch(err){
         return false;
     }
@@ -63,14 +55,21 @@ async function searchBook(req){
     }
 }
 
+
 export const listOfBooks = async(req, res) => {
     try{
         if(!(await permissionLib(req) || await permissionUser(req))){
             return res.status(401).json({message: "Neautorizat!"});
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
-        res.send({books})
+        const carti = await collectionBooks.find({}).maxTimeMS(50).toArray((err, data) => {
+            if (err) {
+                res.status(400).json({error: 'Eroare la interogarea cartilor!'})
+            }
+            return res.json(data);
+        });
+
+        res.send({carti})
     }catch(error){
         res.status(401).json({eroor: "Ceva nu a mers bine!"})
     }
@@ -78,13 +77,18 @@ export const listOfBooks = async(req, res) => {
 
 export const listOfBooksAvailable = async(req, res) => {
     try{
-        if(!(permissionLib(req) || permissionUser(req))){
+        if(!(await permissionLib(req) || await permissionUser(req))){
             return res.status(401).json({message: "Neautorizat!"});
         }
+        
+        const books = await collectionBooks.find({borrowedBook: false}).maxTimeMS(50).toArray((err, data) => {
+            if (err) {
+                res.status(400).json({error: 'Eroare!'})
+            }
+            return res.json(data);
+        });
 
-        const books = await ReadFile("ListOfBooks", "books");
-        const booksAvailable = books.find(book => book.borrowedBook === true );
-        res.send({booksAvailable})
+        res.send({books})
 
     }catch(error){
         res.status(401).json({eroor: "Ceva nu a mers bine!"})
@@ -93,12 +97,16 @@ export const listOfBooksAvailable = async(req, res) => {
 
 export const listOfBooksBorr = async(req, res) => {
     try{
-        if(!(permissionLib(req) || permissionUser(req))){
+        if(!(await permissionLib(req) || await permissionUser(req))){
             return res.status(401).json({message: "Neautorizat!"});
         }
         
-        const books = await ReadFile("ListOfBooks", "books");
-        const borrowedBooks = books.find(book => book.borrowedBook === true );
+        const borrowedBooks = await collectionBooks.find({borrowedBook: true}).maxTimeMS(50).toArray((err, data) => {
+            if (err) {
+                res.status(400).json({error: 'Eroare!'})
+            }
+            return res.json(data);
+        });
 
         res.send({borrowedBooks})
     }catch(error){
@@ -119,9 +127,11 @@ export const addBook = async(req, res) => {
         
         const body = req.body;
         body.borrowedBook = false;
+        const book = new Book(body);
+        book.save();
 
-        await collectionBooks.insertOne(body);
-        res.send({message: `cartea ${body.nume} a fost adaugata`});
+        await collectionBooks.insertOne(book);
+        res.send({message: `cartea ${book.nume} a fost adaugata`});
     }catch(error){
         res.status(500).json({error: "Ceva nu a mers bine!"})
     }
@@ -177,7 +187,7 @@ export const updateBook = async(req, res) => {
         if(!verifParamsIn(req)){
             return res.status(400).json({message: "Numele sau autorul este gresit!"})
         }
-        if(!await searchBook(req)){
+        if(! await searchBook(req)){
             return res.status(400).json({message: "The book doesn t exist!"})
         }
         const verif = verifDataAdd(req);
@@ -185,14 +195,11 @@ export const updateBook = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const books = await ReadFile("ListOfBooks", "books");
-        const foundBook = books.find(book => book.id === req.params.id)
-        if(!foundBook){
-            return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
-        }
-        foundBook.nume = req.body.nume;
-        foundBook.autor = req.body.autor;
-        await WriteFile(books, "books");
+        await collectionBooks.updateOne(
+            {_id: new ObjectId(`${req.params.id}`)}, 
+            {$set: new Object(req.body)}, 
+            {upsert: true}
+        )
         res.status(200).json({message: `Book: ${req.params.id} a fost modificata`})
 
     }catch(error){
@@ -215,20 +222,23 @@ export const borrowBook = async(req, res) => {
         if(typeof req.body.borrFrom !== 'string'){
             return res.status(400).json({message: 'Numele trebuie sa contina doar caractere!'})
         }
-        
-        const books = await ReadFile("ListOfBooks", "books");
-        const foundBook = books.find(book => book.nume === req.body.nume)
+
+        const foundBook = await collectionBooks.findOne({nume: `${req.body.nume}`})
+
         if(!foundBook){
-            return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
+            return res.status(400).json({message: "Cartea nu exista!"})
         }
   
-        if(foundBook.borrowedBook === true)
+        if(foundBook.impCarte === true)
            return res.status(400).json({message: 'Cartea este deja imprumutata!'})
-
         // update carte
         foundBook.borrowedBook = true;
         foundBook.borrFrom = req.body.borrFrom;
         foundBook.dateBorr = new Date();
+
+        //update user
+        collectionUsers.updateOne({username: req.body.borrFrom}, {$inc: {booksNumberBorrowed: 1, booksToReturn: 1}})
+
         const newDate = new Date();
         if(newDate.getMonth() < 7)
             newDate.setMonth(newDate.getMonth() + 6);
@@ -263,22 +273,26 @@ export const returnBook = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const books = await ReadFile();
-        const foundBook = books.find(book => book.nume === req.body.nume)
+        const foundBook = await collectionBooks.findOne({nume: `${req.body.nume}`})
         if(!foundBook){
-            return res.status(401).json({message: `Cartea cu id ul ${req.params.id} nu exista!`})
+            return res.status(400).json({message: "Cartea nu exista!"})
         }
         
         if(foundBook.borrowedBook === false)
            return res.status(400).json({message: 'Cartea nu este imprumutata pentru a o returna!'})
 
+        // update user
+        collectionUsers.updateOne({username: foundBook.borrFrom}, {$inc: {booksToReturn: -1}})
 
-        // update carte
         foundBook.borrowedBook = false;
-        delete foundBook.borrFrom;
-        delete foundBook.dateBorr;
-        delete foundBook.dateRet;
-        await WriteFile(books, "books");
+        await collectionBooks.updateOne(
+            {nume: `${req.body.nume}`}, 
+            {$set: {borrowedBook: false}}, 
+        )
+        await collectionBooks.updateOne(
+            {nume: `${req.body.nume}`}, 
+            {$unset: { borrFrom: "", dateRet: "", dateBorr: ""} }
+        )
         res.status(200).json({message: "Returnata cu succes!"})
  
     }catch(error){
