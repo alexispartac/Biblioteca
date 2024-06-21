@@ -6,13 +6,15 @@
 // … poti sa mai adaugi tu
 
 
-import fs from "fs/promises"
-import { v4 as uuidv4, v1 as uuidv1 } from 'uuid';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const users = require("../ListOfUsers.json");
-const librarians = require("../ListOfLibrarians.json");
-const books = require("../ListOfBooks.json");
+
+import { MongoClient } from "mongodb"
+import mongodb from "mongodb"
+import User from "../model/users.js"
+
+const uri = "mongodb+srv://mateipartac45:Lucaaliuta13$@cluster0.stmiw0l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const client = new MongoClient(uri);
+const col = client.db("biblioteca").collection("users");
+const {ObjectId} = mongodb;
 
 // function interogare daca este user
 async function user(req){
@@ -22,18 +24,10 @@ async function user(req){
     else
         return true;
 }
-
-function changeData(data, col){
-    let dataToString = data.toString();
-    let dataToObj = JSON.parse(dataToString);
-    let books = dataToObj[col];
-    return books;
-};
 // functie de permisiune bib
 async function permissionLib(req){
     try{
-        const Librarians = await ReadFile("ListOfLibrarians.json", "librarians")
-        return Librarians.find(lib => lib.id  === req.headers.idlib)
+        return await col.findOne({_id: new ObjectId(`${req.headers.idlib}`)})  // header ul converteste in litere mici
     }catch(err){
         return false;
     }
@@ -41,8 +35,7 @@ async function permissionLib(req){
 //functie de permisiune pers
 async function permissionUser(req){
     try{
-        const Users = await ReadFile("ListOfUsers.json", "users")
-        return Users.find(user => user.id  === req.headers.iduser)
+        return await col.findOne({_id: new ObjectId(`${req.headers.iduser}`)})
     }catch(err){
         return false;
     }
@@ -73,22 +66,13 @@ function verifParamsIn(req){
 }
 //functie cautare persosna
 async function searchUser(req){
-    const Users = await ReadFile('ListOfUsers.json', "users")
-    return Users.find(user => user.id  === req.params.id)
-}
+    try{
+        return await col.findOne({_id: new ObjectId(`${req.params.id}`)})
+    }catch(err){
+        return false;
+    }
 
-// functie citire fisier
-//file:String, col:String
-async function ReadFile(file, col){
-    const data = await fs.readFile(file)
-    return changeData(data, col);
 }
-
-// functie scriere fisier 
-//file:String, col:Array
-async function WriteFile(file, data){
-    await fs.writeFile(file, JSON.stringify({ users: data}))
-};
 
 export const listOfUsers = async(req, res) => {
     try{
@@ -96,7 +80,13 @@ export const listOfUsers = async(req, res) => {
             return res.status(401).json({message: "Neautorizat!"});
         }
 
-        const users = await ReadFile("ListOfUsers.json", "users");
+        const users = await col.find({}).maxTimeMS(50).toArray((err, data) => {
+            if (err) {
+                res.status(400).json({error: 'Ceva nu a mers bine!'})
+            }
+            return res.json(data);
+        });
+
         res.send({users})
     }catch(error){
         res.status(400).json({error: 'Ceva nu a mers bine!'})
@@ -114,18 +104,9 @@ export const addUser = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const user = req.body;
-        const users = await ReadFile("ListOfUsers.json", "users");
-        users.push({ 
-            id: uuidv4(),
-            ...user,
-            roles: {
-                User: uuidv1()
-            },
-            numberBorrowedBooks: 0,
-            borrowedBookRemain: 0
-        });
-        await WriteFile("ListOfUsers.json", users, "users");
+        const user = new User({...req.body, booksNumberBorrowed: 0, booksToReturn: 0});
+        user.save();
+        await col.insertOne(user)
         res.send({message: `User:${user.username} a fost adaugata!`});
         
     }catch(error){
@@ -138,15 +119,16 @@ export const getUser = async(req, res) => {
         if(!permissionLib(req)){
             return res.status(401).json({message: "Neautorizat!"})
         }
-        if(!verifParamsIn(req)){                                                                // numarul luat ca un string
+        if(!verifParamsIn(req)){                                                               
             return res.status(400).json({message: "Numele, prenumele sau varsta este gresita!"})
         }
         if(!await searchUser(req)){
             return res.status(400).json({message: "User nu exista!"})
         }
+        // const persoane = await ReadFile();
+        // const foundpers = persoane.find((pers) => pers.id === req.params.id)
 
-        const users = await ReadFile("ListOfUsers.json", "users");
-        const foundUser = users.find(user => user.id === req.params.id)
+        const foundUser = await col.findOne({ _id: new ObjectId(`${req.params.id}`) }); 
         res.status(200).send(foundUser)
 
     }catch(error){
@@ -166,9 +148,7 @@ export const deleteUser = async(req, res) => {
             return res.status(400).json({message: "User ul nu exista!"})
         }
 
-        const users = await ReadFile("ListOfUsers.json", "users")    
-        const usersR = users.filter(user => user.id !== req.params.id);
-        await WriteFile("ListOfUsers.json", usersR);
+        await col.deleteOne({_id: new ObjectId(`${req.params.id}`)})
         res.send({message: `User:${req.params.id} sters`});
         
     }catch(error){
@@ -194,15 +174,12 @@ export const updateUser = async(req, res) => {
             return res.status(400).json({message: verif})
         }
 
-        const users = await ReadFile("ListOfUsers.json", "users");
-        const user = users.find(user => user.id === req.params.id)
-        if(!user){
-            return res.status(401).json({message: `Persoana cu id ul ${req.params.id} nu exista!`})
-        }
-
-        user.username = req.body.username;
-        user.password = req.body.password;
-        await WriteFile("ListOfUsers.json", users);
+        await col.updateOne(
+            {_id: new ObjectId(`${req.params.id}`)}, 
+            {$set: new Object(req.body)}, 
+            {upsert: true}
+        )
+        
         res.status(200).send(`User:${req.params.id} a fost modificat`)
     }catch(error){
         res.status(400).json({error: 'Ceva nu a mers bine!'})
