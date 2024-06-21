@@ -1,1 +1,11 @@
-{"books":[{"nume":"Cei trei muschetari","autor":"Alexanidjndrdddd","borrowedBook":true,"id":"4f83a466-41f3-4b00-9cf3-c7d7fa5c6c17","borrFrom":"PartacAlexisMatei","dateBorr":"2024-06-20T08:21:24.971Z","dateRet":"2024-12-20T09:21:24.971Z"},{"nume":"Cei trei muschetariii","autor":"Alexandre-Duma","borrowedBook":true,"id":"d1ab491d-57c0-4962-92a8-28d1361ea625","borrFrom":"PartacAlexisMatei","dateBorr":"2024-06-20T08:22:02.179Z","dateRet":"2024-12-20T09:22:02.179Z"}]}
+{ "books": [
+    {
+        "id": "666dbc8b7bff643417bd8dca",
+        "nume": "Cei trei muschetariii",
+        "autor": "Alexandre-Duma",
+        "borrowedBook": true,
+        "borrFrom": "Partac alexis matei",
+        "dateBorr": "2024-06-17T20:36:32.473Z",
+        "dateRet": "2024-11-16T13:15:37.662Z"
+      }
+]}
